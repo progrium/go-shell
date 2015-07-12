@@ -36,10 +36,9 @@ func PathTemplate(parts ...string) func(...interface{}) string {
 }
 
 func ErrExit() {
-	p, ok := recover().(*Process)
-	if p != nil {
+	if p, ok := recover().(*Process); p != nil {
 		if !ok {
-			fmt.Fprintf(os.Stderr, "Unknown error: %v\n", p)
+			fmt.Fprintf(os.Stderr, "Unexpected panic: %v\n", p)
 			exit(1)
 		}
 		fmt.Fprintf(os.Stderr, "%s\n", p.Error())
@@ -52,10 +51,44 @@ type Command struct {
 	in  *Command
 }
 
-func (c *Command) Func() func(...interface{}) *Process {
+func (c *Command) ProcFn() func(...interface{}) *Process {
 	return func(args ...interface{}) *Process {
 		c.cmd = append(c.cmd, c.args(args...)...)
 		return c.Run()
+	}
+}
+
+func (c *Command) OutputFn() func(...interface{}) (string, error) {
+	return func(args ...interface{}) (out string, err error) {
+		c.cmd = append(c.cmd, c.args(args...)...)
+		defer func() {
+			if p, ok := recover().(*Process); p != nil {
+				if ok {
+					err = p.Error()
+				} else {
+					err = fmt.Errorf("panic: %v", p)
+				}
+			}
+		}()
+		out = c.Run().String()
+		return
+	}
+}
+
+func (c *Command) ErrFn() func(...interface{}) error {
+	return func(args ...interface{}) (err error) {
+		c.cmd = append(c.cmd, c.args(args...)...)
+		defer func() {
+			if p, ok := recover().(*Process); p != nil {
+				if ok {
+					err = p.Error()
+				} else {
+					err = fmt.Errorf("panic: %v", p)
+				}
+			}
+		}()
+		c.Run()
+		return
 	}
 }
 
@@ -126,18 +159,22 @@ func Cmd(cmd ...interface{}) *Command {
 }
 
 type Process struct {
-	Stdout     io.Reader
-	Stderr     io.Reader
+	Stdout     *bytes.Buffer
+	Stderr     *bytes.Buffer
 	Stdin      io.WriteCloser
 	ExitStatus int
 }
 
 func (p *Process) String() string {
-	return strings.Trim(p.Stdout.(*bytes.Buffer).String(), "\n")
+	return strings.Trim(p.Stdout.String(), "\n")
 }
 
-func (p *Process) Error() string {
-	return strings.Trim(p.Stderr.(*bytes.Buffer).String(), "\n")
+func (p *Process) Bytes() []byte {
+	return p.Stdout.Bytes()
+}
+
+func (p *Process) Error() error {
+	return fmt.Errorf("%s (%v)", strings.Trim(p.Stderr.String(), "\n"), p.ExitStatus)
 }
 
 func (p *Process) Read(b []byte) (int, error) {

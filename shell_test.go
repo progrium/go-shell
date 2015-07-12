@@ -1,6 +1,11 @@
 package shell
 
-import "testing"
+import (
+	"bytes"
+	"fmt"
+	"strings"
+	"testing"
+)
 
 func TestCmdRun(t *testing.T) {
 	output := Cmd("echo", "foobar").Run().String()
@@ -54,10 +59,65 @@ func TestLastArgStdin(t *testing.T) {
 	}
 }
 
-func TestCmdFunc(t *testing.T) {
-	echo := Cmd("echo").Func()
+func TestCmdRunFunc(t *testing.T) {
+	echo := Cmd("echo").ProcFn()
 	output := echo("foobar").String()
 	if output != "foobar" {
 		t.Fatal("output not expected:", output)
+	}
+}
+
+func TestPath(t *testing.T) {
+	p := Path("/root", "part1/part2", "foobar")
+	if p != "/root/part1/part2/foobar" {
+		t.Fatal("path not expected:", p)
+	}
+}
+
+func TestPathTemplate(t *testing.T) {
+	tmpl := PathTemplate("/root", "%s/part2", "%s")
+	p := tmpl("one", "two")
+	if p != "/root/one/part2/two" {
+		t.Fatal("path not expected:", p)
+	}
+}
+
+func TestPrintlnStringer(t *testing.T) {
+	var buf bytes.Buffer
+	fmt.Fprintln(&buf, Run("echo foobar"))
+	if buf.String() != "foobar\n" {
+		t.Fatal("output not expected:", buf.String())
+	}
+}
+
+func TestWrapPanicToErr(t *testing.T) {
+	copy := func(src, dst string) (err error) {
+		defer func() {
+			if p := recover().(*Process); p != nil {
+				err = p.Error()
+			}
+		}()
+		Run("cp", src, dst)
+		return
+	}
+	err := copy("", "")
+	if !strings.HasPrefix(err.Error(), "usage:") {
+		t.Fatal("output not expected:", err)
+	}
+}
+
+func TestCmdOutputFn(t *testing.T) {
+	copy := Cmd("cp").OutputFn()
+	echo := Cmd("echo").OutputFn()
+	_, err := copy("", "")
+	if !strings.HasPrefix(err.Error(), "usage:") {
+		t.Fatal("output not expected:", err)
+	}
+	out, err := echo("foobar")
+	if err != nil {
+		t.Fatal("unexpected error:", err)
+	}
+	if out != "foobar" {
+		t.Fatal("output not expected:", out)
 	}
 }
