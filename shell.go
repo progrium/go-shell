@@ -19,6 +19,8 @@ var (
 	exit = os.Exit
 )
 
+var Tee io.Writer
+
 func assert(err error) {
 	if err != nil {
 		panic(err)
@@ -47,20 +49,22 @@ func ErrExit() {
 }
 
 type Command struct {
-	cmd []string
-	in  *Command
+	args []string
+	in   *Command
 }
 
 func (c *Command) ProcFn() func(...interface{}) *Process {
 	return func(args ...interface{}) *Process {
-		c.cmd = append(c.cmd, c.args(args...)...)
-		return c.Run()
+		cmd := &Command{c.args, c.in}
+		cmd.addArgs(args...)
+		return cmd.Run()
 	}
 }
 
 func (c *Command) OutputFn() func(...interface{}) (string, error) {
 	return func(args ...interface{}) (out string, err error) {
-		c.cmd = append(c.cmd, c.args(args...)...)
+		cmd := &Command{c.args, c.in}
+		cmd.addArgs(args...)
 		defer func() {
 			if p, ok := recover().(*Process); p != nil {
 				if ok {
@@ -70,14 +74,15 @@ func (c *Command) OutputFn() func(...interface{}) (string, error) {
 				}
 			}
 		}()
-		out = c.Run().String()
+		out = cmd.Run().String()
 		return
 	}
 }
 
 func (c *Command) ErrFn() func(...interface{}) error {
 	return func(args ...interface{}) (err error) {
-		c.cmd = append(c.cmd, c.args(args...)...)
+		cmd := &Command{c.args, c.in}
+		cmd.addArgs(args...)
 		defer func() {
 			if p, ok := recover().(*Process); p != nil {
 				if ok {
@@ -87,7 +92,7 @@ func (c *Command) ErrFn() func(...interface{}) error {
 				}
 			}
 		}()
-		c.Run()
+		cmd.Run()
 		return
 	}
 }
@@ -96,7 +101,7 @@ func (c *Command) Pipe(cmd ...interface{}) *Command {
 	return Cmd(append(cmd, c)...)
 }
 
-func (c *Command) args(args ...interface{}) []string {
+func (c *Command) addArgs(args ...interface{}) {
 	var strArgs []string
 	for i, arg := range args {
 		switch v := arg.(type) {
@@ -113,15 +118,25 @@ func (c *Command) args(args ...interface{}) []string {
 			panic("invalid type for argument")
 		}
 	}
-	return strArgs
+	c.args = append(c.args, strArgs...)
+}
+
+func (c *Command) shellCmd(quote bool) string {
+	if !quote {
+		return strings.Join(c.args, " ")
+	}
+	var quoted []string
+	for i := range c.args {
+		quoted = append(quoted, fmt.Sprintf("'%s'", c.args[i]))
+	}
+	return strings.Join(quoted, " ")
 }
 
 func (c *Command) Run() *Process {
-	shellCmd := strings.Join(c.cmd, " ")
 	if Trace {
-		fmt.Fprintln(os.Stderr, "+", shellCmd)
+		fmt.Fprintln(os.Stderr, "+", c.shellCmd(false))
 	}
-	cmd := exec.Command(Shell, "-c", shellCmd)
+	cmd := exec.Command(Shell, "-c", c.shellCmd(true))
 	p := new(Process)
 	if c.in != nil {
 		cmd.Stdin = c.in.Run()
@@ -131,10 +146,18 @@ func (c *Command) Run() *Process {
 		p.Stdin = stdin
 	}
 	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
+	if Tee != nil {
+		cmd.Stdout = io.MultiWriter(&stdout, Tee)
+	} else {
+		cmd.Stdout = &stdout
+	}
 	p.Stdout = &stdout
 	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+	if Tee != nil {
+		cmd.Stderr = io.MultiWriter(&stderr, Tee)
+	} else {
+		cmd.Stderr = &stderr
+	}
 	p.Stderr = &stderr
 	err := cmd.Run()
 	if err != nil {
@@ -154,7 +177,7 @@ func (c *Command) Run() *Process {
 
 func Cmd(cmd ...interface{}) *Command {
 	c := new(Command)
-	c.cmd = c.args(cmd...)
+	c.addArgs(cmd...)
 	return c
 }
 
