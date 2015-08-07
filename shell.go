@@ -37,6 +37,10 @@ func PathTemplate(parts ...string) func(...interface{}) string {
 	}
 }
 
+func Quote(arg string) string {
+	return fmt.Sprintf("'%s'", strings.Replace(arg, "'", "'\\''", -1))
+}
+
 func ErrExit() {
 	if p, ok := recover().(*Process); p != nil {
 		if !ok {
@@ -127,7 +131,7 @@ func (c *Command) shellCmd(quote bool) string {
 	}
 	var quoted []string
 	for i := range c.args {
-		quoted = append(quoted, fmt.Sprintf("'%s'", c.args[i]))
+		quoted = append(quoted, Quote(c.args[i]))
 	}
 	return strings.Join(quoted, " ")
 }
@@ -136,7 +140,7 @@ func (c *Command) Run() *Process {
 	if Trace {
 		fmt.Fprintln(os.Stderr, "+", c.shellCmd(false))
 	}
-	cmd := exec.Command(Shell, "-c", c.shellCmd(true))
+	cmd := exec.Command(Shell, "-c", c.shellCmd(false))
 	p := new(Process)
 	if c.in != nil {
 		cmd.Stdin = c.in.Run()
