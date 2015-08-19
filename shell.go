@@ -202,7 +202,8 @@ func (p *Process) Bytes() []byte {
 }
 
 func (p *Process) Error() error {
-	return fmt.Errorf("%s (%v)", strings.Trim(p.Stderr.String(), "\n"), p.ExitStatus)
+	errlines := strings.Split(p.Stderr.String(), "\n")
+	return fmt.Errorf("[%v] %s\n", p.ExitStatus, errlines[len(errlines)-2])
 }
 
 func (p *Process) Read(b []byte) (int, error) {
