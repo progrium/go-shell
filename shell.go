@@ -12,9 +12,10 @@ import (
 )
 
 var (
-	Shell = "/bin/sh"
-	Panic = true
-	Trace = false
+	Shell       = []string{"/bin/sh", "-c"}
+	Panic       = true
+	Trace       = false
+	TracePrefix = "+"
 
 	exit = os.Exit
 )
@@ -138,9 +139,9 @@ func (c *Command) shellCmd(quote bool) string {
 
 func (c *Command) Run() *Process {
 	if Trace {
-		fmt.Fprintln(os.Stderr, "+", c.shellCmd(false))
+		fmt.Fprintln(os.Stderr, TracePrefix, c.shellCmd(false))
 	}
-	cmd := exec.Command(Shell, "-c", c.shellCmd(false))
+	cmd := exec.Command(Shell[0], append(Shell[1:], c.shellCmd(false))...)
 	p := new(Process)
 	if c.in != nil {
 		cmd.Stdin = c.in.Run()
