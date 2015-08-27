@@ -27,7 +27,7 @@ var (
 )
 
 shell.Trace = true // like set +x
-shell.Shell = "/bin/bash" // defaults to /bin/sh
+shell.Shell = []string{"/bin/bash", "-c"} // defaults to /bin/sh
 
 func main() {
   defer shell.ErrExit()
