@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -142,6 +143,7 @@ func (c *Command) Run() *Process {
 		fmt.Fprintln(os.Stderr, TracePrefix, c.shellCmd(false))
 	}
 	cmd := exec.Command(Shell[0], append(Shell[1:], c.shellCmd(false))...)
+	log.Println(cmd.Args)
 	p := new(Process)
 	if c.in != nil {
 		cmd.Stdin = c.in.Run()
@@ -203,7 +205,13 @@ func (p *Process) Bytes() []byte {
 
 func (p *Process) Error() error {
 	errlines := strings.Split(p.Stderr.String(), "\n")
-	return fmt.Errorf("[%v] %s\n", p.ExitStatus, errlines[len(errlines)-2])
+	s := len(errlines)
+	if s > 1 {
+		s -= 1
+	} else {
+		s = 0
+	}
+	return fmt.Errorf("[%v] %s\n", p.ExitStatus, errlines[s])
 }
 
 func (p *Process) Read(b []byte) (int, error) {
