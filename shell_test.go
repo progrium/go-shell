@@ -3,6 +3,7 @@ package shell
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 )
@@ -119,5 +120,29 @@ func TestCmdOutputFn(t *testing.T) {
 	}
 	if out != "foobar" {
 		t.Fatal("output not expected:", out)
+	}
+}
+
+func TestSetWorkDir(t *testing.T) {
+	var (
+		pwd      = os.Getenv("PWD")
+		testPath = Path(pwd, "_goshell_unique")
+	)
+	defer func() {
+		os.RemoveAll(Path(pwd, "testfile"))
+		os.RemoveAll(testPath)
+	}()
+	if err := os.MkdirAll(testPath, os.ModePerm); err != nil {
+		t.Fatal("unexpected error:", err)
+	}
+
+	p := Cmd("touch", "testfile").SetWorkDir(testPath).Run()
+	if p.ExitStatus != 0 {
+		t.Fatal("unexpected error:", p.Error())
+	}
+
+	_, err := os.Stat(testPath, "testfile")
+	if err != nil {
+		t.Errorf("expected touched file to be present in correct working dir but was not")
 	}
 }
