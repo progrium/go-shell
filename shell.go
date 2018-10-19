@@ -206,7 +206,9 @@ func Cmd(cmd ...interface{}) *Command {
 }
 
 type Process struct {
-	cmd        *exec.Cmd
+	cmd    *exec.Cmd
+	killed bool
+
 	Stdout     *bytes.Buffer
 	Stderr     *bytes.Buffer
 	Stdin      io.WriteCloser
@@ -219,13 +221,27 @@ func (p *Process) Wait() error {
 		if exiterr, ok := err.(*exec.ExitError); ok {
 			if stat, ok := exiterr.Sys().(syscall.WaitStatus); ok {
 				p.ExitStatus = int(stat.ExitStatus())
-				if Panic {
+				if Panic && !p.killed {
 					panic(p)
 				}
 			}
 		}
 	}
 	return err
+}
+
+func (p *Process) Kill() error {
+	p.killed = true
+	err := p.cmd.Process.Kill()
+	if err != nil {
+		return fmt.Errorf("killed error: %s", err)
+	}
+	if err := p.Wait(); err == nil {
+		if !strings.Contains(err.Error(), "signal: killed") {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p *Process) String() string {

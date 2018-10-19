@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCmdRun(t *testing.T) {
@@ -31,6 +32,29 @@ func TestStartWait(t *testing.T) {
 	output := p.String()
 	if output != "foobar" {
 		t.Fatal("output not expected:", output)
+	}
+}
+
+func TestStartKillWait(t *testing.T) {
+	p := Start("cat")
+	err := p.Kill()
+	if err != nil {
+		t.Fatal("error not expected:", err)
+	}
+
+	var (
+		done  = make(chan interface{}, 0)
+		timer = time.NewTimer(2 * time.Second)
+	)
+	go func() {
+		p.Wait()
+		done <- struct{}{}
+	}()
+	select {
+	case <-timer.C:
+		t.Fatal("kill timeout reached")
+	case <-done:
+		break
 	}
 }
 
