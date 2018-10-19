@@ -22,6 +22,18 @@ func TestRun(t *testing.T) {
 	}
 }
 
+func TestStartWait(t *testing.T) {
+	p := Start("echo", "foobar")
+	err := p.Wait()
+	if err != nil {
+		t.Fatal("error not expected:", err)
+	}
+	output := p.String()
+	if output != "foobar" {
+		t.Fatal("output not expected:", output)
+	}
+}
+
 func TestPanic(t *testing.T) {
 	defer func() {
 		p := recover().(*Process).ExitStatus
