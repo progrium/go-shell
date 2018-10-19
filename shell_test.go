@@ -141,7 +141,7 @@ func TestSetWorkDir(t *testing.T) {
 		t.Fatal("unexpected error:", p.Error())
 	}
 
-	_, err := os.Stat(testPath, "testfile")
+	_, err := os.Stat(Path(testPath, "testfile"))
 	if err != nil {
 		t.Errorf("expected touched file to be present in correct working dir but was not")
 	}
