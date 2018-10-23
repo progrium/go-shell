@@ -145,13 +145,23 @@ func (c *Command) shellCmd(quote bool) string {
 }
 
 func (c *Command) Run() *Process {
+	cmd := exec.Command(Shell[0], append(Shell[1:], c.shellCmd(false))...)
+	return c.execute(cmd, cmd.Run)
+}
+
+func (c *Command) Start() *Process {
+	cmd := exec.Command(Shell[0], append(Shell[1:], c.shellCmd(false))...)
+	return c.execute(cmd, cmd.Start)
+}
+
+func (c *Command) execute(cmd *exec.Cmd, call func() error) *Process {
 	if Trace {
 		fmt.Fprintln(os.Stderr, TracePrefix, c.shellCmd(false))
 	}
-	cmd := exec.Command(Shell[0], append(Shell[1:], c.shellCmd(false))...)
 	cmd.Dir = c.wd
 	log.Println(cmd.Args)
 	p := new(Process)
+	p.cmd = cmd
 	if c.in != nil {
 		cmd.Stdin = c.in.Run()
 	} else {
@@ -173,7 +183,7 @@ func (c *Command) Run() *Process {
 		cmd.Stderr = &stderr
 	}
 	p.Stderr = &stderr
-	err := cmd.Run()
+	err := call()
 	if err != nil {
 		if exiterr, ok := err.(*exec.ExitError); ok {
 			if stat, ok := exiterr.Sys().(syscall.WaitStatus); ok {
@@ -196,10 +206,42 @@ func Cmd(cmd ...interface{}) *Command {
 }
 
 type Process struct {
+	cmd    *exec.Cmd
+	killed bool
+
 	Stdout     *bytes.Buffer
 	Stderr     *bytes.Buffer
 	Stdin      io.WriteCloser
 	ExitStatus int
+}
+
+func (p *Process) Wait() error {
+	err := p.cmd.Wait()
+	if err != nil {
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			if stat, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+				p.ExitStatus = int(stat.ExitStatus())
+				if Panic && !p.killed {
+					panic(p)
+				}
+			}
+		}
+	}
+	return err
+}
+
+func (p *Process) Kill() error {
+	p.killed = true
+	err := p.cmd.Process.Kill()
+	if err != nil {
+		return fmt.Errorf("killed error: %s", err)
+	}
+	if err := p.Wait(); err == nil {
+		if !strings.Contains(err.Error(), "signal: killed") {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p *Process) String() string {
@@ -231,4 +273,8 @@ func (p *Process) Write(b []byte) (int, error) {
 
 func Run(cmd ...interface{}) *Process {
 	return Cmd(cmd...).Run()
+}
+
+func Start(cmd ...interface{}) *Process {
+	return Cmd(cmd...).Start()
 }
