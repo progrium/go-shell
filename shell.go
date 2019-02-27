@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -159,7 +158,6 @@ func (c *Command) execute(cmd *exec.Cmd, call func() error) *Process {
 		fmt.Fprintln(os.Stderr, TracePrefix, c.shellCmd(false))
 	}
 	cmd.Dir = c.wd
-	log.Println(cmd.Args)
 	p := new(Process)
 	p.cmd = cmd
 	if c.in != nil {
