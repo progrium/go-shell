@@ -137,8 +137,8 @@ func TestWrapPanicToErr(t *testing.T) {
 		Run("cp", src, dst)
 		return
 	}
-	err := copy("", "")
-	if !strings.HasPrefix(err.Error(), "[64] ") {
+	err := copy("foo", "bar")
+	if !strings.HasPrefix(err.Error(), "[1] ") {
 		t.Fatal("output not expected:", err)
 	}
 }
@@ -146,8 +146,8 @@ func TestWrapPanicToErr(t *testing.T) {
 func TestCmdOutputFn(t *testing.T) {
 	copy := Cmd("cp").OutputFn()
 	echo := Cmd("echo").OutputFn()
-	_, err := copy("", "")
-	if !strings.HasPrefix(err.Error(), "[64] ") {
+	_, err := copy("foo", "bar")
+	if !strings.HasPrefix(err.Error(), "[1] ") {
 		t.Fatal("output not expected:", err)
 	}
 	out, err := echo("foobar")
