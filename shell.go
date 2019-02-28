@@ -186,6 +186,7 @@ func (c *Command) execute(cmd *exec.Cmd, call func() error) *Process {
 		if exiterr, ok := err.(*exec.ExitError); ok {
 			if stat, ok := exiterr.Sys().(syscall.WaitStatus); ok {
 				p.ExitStatus = int(stat.ExitStatus())
+				fmt.Printf("%v\n", err)
 				if Panic {
 					panic(p)
 				}
@@ -219,6 +220,7 @@ func (p *Process) Wait() error {
 		if exiterr, ok := err.(*exec.ExitError); ok {
 			if stat, ok := exiterr.Sys().(syscall.WaitStatus); ok {
 				p.ExitStatus = int(stat.ExitStatus())
+				fmt.Printf("%v\n", err)
 				if Panic && !p.killed {
 					panic(p)
 				}
