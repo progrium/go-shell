@@ -58,11 +58,12 @@ type Command struct {
 	args []string
 	in   *Command
 	wd   string
+	tee  io.Writer
 }
 
 func (c *Command) ProcFn() func(...interface{}) *Process {
 	return func(args ...interface{}) *Process {
-		cmd := &Command{c.args, c.in, c.wd}
+		cmd := &Command{c.args, c.in, c.wd, c.tee}
 		cmd.addArgs(args...)
 		return cmd.Run()
 	}
@@ -70,7 +71,7 @@ func (c *Command) ProcFn() func(...interface{}) *Process {
 
 func (c *Command) OutputFn() func(...interface{}) (string, error) {
 	return func(args ...interface{}) (out string, err error) {
-		cmd := &Command{c.args, c.in, c.wd}
+		cmd := &Command{c.args, c.in, c.wd, c.tee}
 		cmd.addArgs(args...)
 		defer func() {
 			if p, ok := recover().(*Process); p != nil {
@@ -88,7 +89,7 @@ func (c *Command) OutputFn() func(...interface{}) (string, error) {
 
 func (c *Command) ErrFn() func(...interface{}) error {
 	return func(args ...interface{}) (err error) {
-		cmd := &Command{c.args, c.in, c.wd}
+		cmd := &Command{c.args, c.in, c.wd, c.tee}
 		cmd.addArgs(args...)
 		defer func() {
 			if p, ok := recover().(*Process); p != nil {
@@ -133,6 +134,11 @@ func (c *Command) addArgs(args ...interface{}) {
 	c.args = append(c.args, strArgs...)
 }
 
+func (c *Command) Tee(t io.Writer) *Command {
+	c.tee = t
+	return c
+}
+
 func (c *Command) shellCmd(quote bool) string {
 	if !quote {
 		return strings.Join(c.args, " ")
@@ -169,16 +175,19 @@ func (c *Command) execute(cmd *exec.Cmd, call func() error) *Process {
 		assert(err)
 		p.Stdin = stdin
 	}
-	var stdout bytes.Buffer
 	if Tee != nil {
-		cmd.Stdout = io.MultiWriter(&stdout, Tee)
+		c.tee = Tee
+	}
+	var stdout bytes.Buffer
+	if c.tee != nil {
+		cmd.Stdout = io.MultiWriter(&stdout, c.tee)
 	} else {
 		cmd.Stdout = &stdout
 	}
 	p.Stdout = &stdout
 	var stderr bytes.Buffer
-	if Tee != nil {
-		cmd.Stderr = io.MultiWriter(&stderr, Tee)
+	if c.tee != nil {
+		cmd.Stderr = io.MultiWriter(&stderr, c.tee)
 	} else {
 		cmd.Stderr = &stderr
 	}

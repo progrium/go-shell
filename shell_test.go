@@ -3,6 +3,8 @@ package shell
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -180,5 +182,30 @@ func TestSetWorkDir(t *testing.T) {
 	_, err := os.Stat(Path(testPath, "testfile"))
 	if err != nil {
 		t.Errorf("expected touched file to be present in correct working dir but was not")
+	}
+}
+
+func TestCmdTee(t *testing.T) {
+	pr, pw := io.Pipe()
+	go func() {
+		defer pw.Close()
+		p := Cmd("echo", "test").Tee(pw).Run()
+		if p.ExitStatus != 0 {
+			t.Fatal(p.Error())
+		}
+
+		if p.String() != "test" {
+			t.Errorf("expected String() output to be (test), but was (%s)", string(p.String()))
+		}
+	}()
+
+	out, err := ioutil.ReadAll(pr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr.Close()
+
+	if string(out) != "test\n" {
+		t.Errorf("expected Tee output to be (test\\n), but was (%s)", string(out))
 	}
 }
